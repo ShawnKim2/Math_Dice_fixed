@@ -36,7 +36,7 @@ namespace Math_Dice_fixed
             ValidationText.Foreground = Brushes.Black;
         }
 
-        // 실시간 숫자 검증
+        // 실시간 입력 검증
         private void InputBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
         {
             if (gameOver) return;
@@ -48,24 +48,17 @@ namespace Math_Dice_fixed
                 return;
             }
 
-            var matches = Regex.Matches(expr, @"\d+");
-            int[] usedNumbers = matches.Cast<Match>().Select(m => int.Parse(m.Value)).ToArray();
-            int[] diceCopy = (int[])dice.Clone();
-            bool valid = true;
-
-            foreach (int num in usedNumbers)
+            // 숫자와 연산자만 허용
+            if (!Regex.IsMatch(expr, @"^[0-9+\-*/()]*$"))
             {
-                int index = Array.IndexOf(diceCopy, num);
-                if (index == -1)
-                {
-                    valid = false;
-                    break;
-                }
-                else
-                {
-                    diceCopy[index] = -1; // 사용한 주사위 제거
-                }
+                ValidationText.Text = "❌ 숫자와 연산자(+,-,*,/)만 사용 가능합니다!";
+                ValidationText.Foreground = Brushes.Red;
+                return;
             }
+
+            // 주사위 숫자 사용 가능 여부 체크
+            string[] numbersInExpr = Regex.Matches(expr, @"\d+").Cast<Match>().Select(m => m.Value).ToArray();
+            bool valid = numbersInExpr.All(n => CanMakeNumberFromDice(n, dice));
 
             if (valid)
             {
@@ -79,6 +72,7 @@ namespace Math_Dice_fixed
             }
         }
 
+        // 제출 버튼 클릭
         private void SubmitButton_Click(object sender, RoutedEventArgs e)
         {
             if (gameOver) return;
@@ -93,27 +87,16 @@ namespace Math_Dice_fixed
             AppendLog($"\n--- {turn} 턴 ---");
             AppendLog($"입력한 수식: {expr}");
 
-            // 숫자 사용 체크
-            var matches = Regex.Matches(expr, @"\d+");
-            int[] usedNumbers = matches.Cast<Match>().Select(m => int.Parse(m.Value)).ToArray();
-            int[] diceCopy = (int[])dice.Clone();
-            bool valid = true;
-
-            foreach (int num in usedNumbers)
+            // 숫자와 연산자만 허용
+            if (!Regex.IsMatch(expr, @"^[0-9+\-*/()]*$"))
             {
-                int index = Array.IndexOf(diceCopy, num);
-                if (index == -1)
-                {
-                    valid = false;
-                    break;
-                }
-                else
-                {
-                    diceCopy[index] = -1;
-                }
+                AppendLog("❌ 숫자와 연산자(+,-,*,/)만 사용 가능합니다!");
+                return;
             }
 
-            if (!valid)
+            // 숫자 추출 및 주사위 사용 체크
+            string[] numbersInExpr = Regex.Matches(expr, @"\d+").Cast<Match>().Select(m => m.Value).ToArray();
+            if (!numbersInExpr.All(n => CanMakeNumberFromDice(n, dice)))
             {
                 AppendLog("❌ 주사위 숫자를 잘못 사용했습니다!");
                 EndGame(false);
@@ -124,10 +107,10 @@ namespace Math_Dice_fixed
             try
             {
                 var dt = new DataTable();
-                var value = Convert.ToInt32(dt.Compute(expr, ""));
-                AppendLog($"계산 결과: {value}");
+                int result = Convert.ToInt32(dt.Compute(expr, ""));
+                AppendLog($"계산 결과: {result}");
 
-                if (value == target)
+                if (result == target)
                 {
                     AppendLog("✅ 정답! 승리했습니다!");
                     EndGame(true);
@@ -143,6 +126,20 @@ namespace Math_Dice_fixed
             }
 
             turn++;
+        }
+
+        // 주사위 숫자를 조합해서 숫자를 만들 수 있는지 확인
+        private bool CanMakeNumberFromDice(string numberStr, int[] diceArray)
+        {
+            int[] diceCopy = (int[])diceArray.Clone();
+            foreach (char c in numberStr)
+            {
+                int digit = c - '0';
+                int index = Array.IndexOf(diceCopy, digit);
+                if (index == -1) return false;
+                diceCopy[index] = -1; // 사용한 주사위 제거
+            }
+            return true;
         }
 
         private void RestartButton_Click(object sender, RoutedEventArgs e)
